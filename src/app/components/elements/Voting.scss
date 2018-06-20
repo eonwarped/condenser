@@ -88,10 +88,19 @@
     position: relative;
     margin-left: 1em;
   }
+  // match position of vote chevrons
   > .dropdown-comp > .dropdown__content {
     position: absolute;
     top: -30px;
     left: -26px;
+  }
+  // mobile, guarantee it becomes in view
+  @media only screen and (max-width: 680px) {
+      > .dropdown-comp > .dropdown__content {
+          position: fixed;
+          left: 5%;
+          top: 40%;
+      }
   }
 }
 
