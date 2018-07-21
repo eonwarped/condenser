@@ -18,6 +18,7 @@ import tt from 'counterpart';
 import ImageUserBlockList from 'app/utils/ImageUserBlockList';
 import proxifyImageUrl from 'app/utils/ProxifyUrl';
 import Userpic, { avatarSize } from 'app/components/elements/Userpic';
+import { parsePayoutAmount } from 'app/utils/ParsersAndFormatters';
 import { SIGNUP_URL } from 'shared/constants';
 
 class PostSummary extends React.Component {
@@ -28,6 +29,7 @@ class PostSummary extends React.Component {
         content: PropTypes.object.isRequired,
         thumbSize: PropTypes.string,
         nsfwPref: PropTypes.string,
+        promoted: PropTypes.object,
     };
 
     constructor() {
@@ -55,7 +57,7 @@ class PostSummary extends React.Component {
 
     render() {
         const { thumbSize, ignore } = this.props;
-        const { post, content } = this.props;
+        const { post, promoted, content } = this.props;
         const { account } = this.props;
         if (!content) return null;
 
@@ -98,6 +100,11 @@ class PostSummary extends React.Component {
         const { gray, authorRepLog10, flagWeight, isNsfw } = content
             .get('stats', Map())
             .toJS();
+        const isPromoted =
+            promoted &&
+            promoted.contains(
+                `${content.get('author')}/${content.get('permlink')}`
+            );
         const p = extractContent(immutableAccessor, content);
         const desc = p.desc;
 
@@ -199,6 +206,11 @@ class PostSummary extends React.Component {
                                 </span>
                             )}
                         </Link>
+                        {isPromoted && (
+                            <span className="articles__tag-link">
+                                &nbsp;•&nbsp;{tt('g.promoted')}
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div className="articles__flag clearfix">
@@ -339,7 +351,11 @@ class PostSummary extends React.Component {
         if (gray || ignore) commentClasses.push('downvoted'); // rephide
 
         return (
-            <div className="articles__summary">
+            <div
+                className={
+                    'articles__summary' + (isPromoted ? ' promoted' : '')
+                }
+            >
                 {reblogged_by}
                 {summary_header}
                 <div

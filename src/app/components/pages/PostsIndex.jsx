@@ -17,6 +17,7 @@ import SidebarNewUsers from 'app/components/elements/SidebarNewUsers';
 import ArticleLayoutSelector from 'app/components/modules/ArticleLayoutSelector';
 import Topics from './Topics';
 import SortOrder from 'app/components/elements/SortOrder';
+import { PROMOTED_POST_PAD_SIZE } from 'shared/constants';
 
 class PostsIndex extends React.Component {
     static propTypes = {
@@ -55,7 +56,22 @@ class PostsIndex extends React.Component {
     getPosts(order, category) {
         const topic_discussions = this.props.discussions.get(category || '');
         if (!topic_discussions) return null;
-        return topic_discussions.get(order);
+        const mainDiscussions = topic_discussions.get(order);
+        if (order === 'trending' || order === 'hot') {
+            const promotedDiscussions = topic_discussions.get('promoted');
+            if (promotedDiscussions && promotedDiscussions.size > 0) {
+                return promotedDiscussions
+                    .interleave(
+                        mainDiscussions
+                            .groupBy((v, k) =>
+                                Math.floor(k / PROMOTED_POST_PAD_SIZE)
+                            )
+                            .valueSeq()
+                    )
+                    .flatten();
+            }
+        }
+        return mainDiscussions;
     }
 
     loadMore(last_post) {
@@ -89,7 +105,7 @@ class PostsIndex extends React.Component {
             order = constants.DEFAULT_SORT_ORDER,
         } = this.props.routeParams;
 
-        const { categories } = this.props;
+        const { categories, discussions } = this.props;
 
         let topics_order = order;
         let posts = [];
@@ -150,6 +166,11 @@ class PostsIndex extends React.Component {
             : null;
         const fetching = (status && status.fetching) || this.props.loading;
         const { showSpam } = this.state;
+
+        const topicDiscussions = discussions.get(category || '');
+        const promotedPosts = topicDiscussions
+            ? topicDiscussions.get('promoted', List()).toSet()
+            : null;
 
         // If we're at one of the four sort order routes without a tag filter,
         // use the translated string for that sort order, f.ex "trending"
@@ -238,6 +259,7 @@ class PostsIndex extends React.Component {
                             category={category}
                             loadMore={this.loadMore}
                             showSpam={showSpam}
+                            promoted={promotedPosts}
                         />
                     )}
                 </article>
