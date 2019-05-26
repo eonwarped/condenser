@@ -3,6 +3,7 @@
   "disable_signups": "SDC_DISABLE_SIGNUPS",
   "facebook_app_id": "SDC_FACEBOOK_APP_ID",
   "google_analytics_id": "SDC_GOOGLE_ANALYTICS_ID",
+  "gtag_measurement_id": "SDC_GTAG_MEASUREMENT_ID",
   "helmet": {
     "directives": {
       "childSrc": "SDC_HELMET_CHILDSRC",
