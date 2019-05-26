@@ -3,6 +3,7 @@
   "disable_signups": false,
   "facebook_app_id": false,
   "google_analytics_id": false,
+  "gtag_measurement_id": false,
   "helmet": {
     "directives": {
       "childSrc": "'self' player.twitch.tv www.youtube.com staticxx.facebook.com w.soundcloud.com player.vimeo.com",
