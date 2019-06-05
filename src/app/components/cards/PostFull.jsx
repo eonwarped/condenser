@@ -481,13 +481,13 @@ class PostFull extends React.Component {
                 )}
                 <TagList post={content} horizontal />
                 <div className="PostFull__footer row">
-                    <div className="columns medium-12 large-5">
+                    <div className="columns medium-12 large-8">
                         <TimeAuthorCategory
                             content={content}
                             authorRepLog10={authorRepLog10}
                         />
                     </div>
-                    <div className="columns medium-12 large-2 ">
+                    <div className="columns medium-12 large-5 ">
                         <Voting post={post} />
                     </div>
                     <div className="RightShare__Menu small-11 medium-12 large-5 columns">
