@@ -49,6 +49,15 @@ async function getAuthorRep(feedData) {
     return authorRep;
 }
 
+function mergeContent(content, scotData) {
+    // Preserve STEEM data as well.
+    const oldContent = { ...content };
+    Object.assign(content, scotData);
+    content.scotData = {};
+    content.scotData['STEEM'] = oldContent;
+    content.scotData[LIQUID_TOKEN_UPPERCASE] = scotData;
+}
+
 async function fetchMissingData(tag, feedType, state, feedData) {
     if (!state.content) {
         state.content = {};
@@ -89,10 +98,7 @@ async function fetchMissingData(tag, feedType, state, feedData) {
         } else {
             filteredContent[key] = state.content[key];
         }
-        Object.assign(filteredContent[key], d);
-        filteredContent[key].scotData = {};
-        filteredContent[key].scotData[LIQUID_TOKEN_UPPERCASE] = d;
-
+        mergeContent(filteredContent[key], d);
         discussionIndex.push(key);
     });
     state.content = filteredContent;
@@ -191,11 +197,10 @@ export async function attachScotData(url, state) {
                     const v = entry[1];
                     // Fetch SCOT data
                     const scotData = await getScotDataAsync(`@${k}`);
-                    Object.assign(
+                    mergeContent(
                         state.content[k],
                         scotData[LIQUID_TOKEN_UPPERCASE]
                     );
-                    state.content[k].scotData = scotData;
                 })
         );
         const filteredContent = {};
@@ -217,9 +222,9 @@ export async function getContentAsync(author, permlink) {
     const scotData = await getScotDataAsync(`@${author}/${permlink}`);
     // Do not assign scot data directly, or vote count will not show
     // due to delay in steemd vs scot bot.
-    //Object.assign(content, scotData[LIQUID_TOKEN_UPPERCASE]);
-    content.scotData = scotData;
-
+    content.scotData = {};
+    content.scotData['STEEM'] = { ...content };
+    content.scotData[LIQUID_TOKEN_UPPERCASE] = scotData[LIQUID_TOKEN_UPPERCASE];
     return content;
 }
 
@@ -279,9 +284,7 @@ export async function fetchFeedDataAsync(call_name, ...args) {
                         replies: [], // intentional
                     };
                 }
-                Object.assign(content, scotData);
-                content.scotData = {};
-                content.scotData[LIQUID_TOKEN_UPPERCASE] = scotData;
+                mergeContent(content, scotData);
                 return content;
             })
         );
@@ -300,8 +303,7 @@ export async function fetchFeedDataAsync(call_name, ...args) {
             feedData.map(async post => {
                 const k = `${post.author}/${post.permlink}`;
                 const scotData = await getScotDataAsync(`@${k}`);
-                Object.assign(post, scotData[LIQUID_TOKEN_UPPERCASE]);
-                post.scotData = scotData;
+                mergeContent(post, scotData[LIQUID_TOKEN_UPPERCASE]);
                 return post;
             })
         );

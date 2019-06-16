@@ -43,6 +43,7 @@ const ABOUT_FLAG = (
 const MAX_VOTES_DISPLAY = 20;
 const VOTE_WEIGHT_DROPDOWN_THRESHOLD_RSHARES = 1.0 * 1000.0 * 1000.0;
 const MAX_WEIGHT = 10000;
+const SBD_PRINT_RATE_MAX = 10000;
 
 class Voting extends React.Component {
     static propTypes = {
@@ -217,6 +218,46 @@ class Voting extends React.Component {
         }
     }
 
+    _processScotData(scotData, processedScotData) {
+        processedScotData.pending_token = parseInt(
+            scotData.get('pending_token')
+        );
+        processedScotData.total_curator_payout = parseInt(
+            scotData.get('curator_payout_value')
+        );
+        processedScotData.total_author_payout = parseInt(
+            scotData.get('total_payout_value')
+        );
+        const scot_bene_payout = parseInt(
+            scotData.get('beneficiaries_payout_value')
+        );
+        processedScotData.promoted = parseInt(scotData.get('promoted'));
+        processedScotData.total_author_payout -=
+            processedScotData.total_curator_payout;
+        processedScotData.total_author_payout -= scot_bene_payout;
+        processedScotData.cashout_time = scotData.get('cashout_time');
+        if (
+            processedScotData.cashout_time &&
+            /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(
+                processedScotData.cashout_time
+            )
+        ) {
+            processedScotData.cashout_time =
+                processedScotData.cashout_time + 'Z'; // Firefox really wants this Z (Zulu)
+        }
+        processedScotData.payout = processedScotData.pending_token
+            ? processedScotData.pending_token
+            : processedScotData.total_author_payout +
+              processedScotData.total_curator_payout;
+
+        // divide by SCOT_DENOM
+        processedScotData.pending_token /= SCOT_DENOM;
+        processedScotData.total_curator_payout /= SCOT_DENOM;
+        processedScotData.total_author_payout /= SCOT_DENOM;
+        processedScotData.payout /= SCOT_DENOM;
+        processedScotData.promoted /= SCOT_DENOM;
+    }
+
     render() {
         const {
             active_votes,
@@ -228,6 +269,8 @@ class Voting extends React.Component {
             username,
             votingData,
             scotData,
+            price_per_steem,
+            sbd_print_rate,
         } = this.props;
 
         // Incorporate 5 day regeneration time.
@@ -362,42 +405,77 @@ class Voting extends React.Component {
             );
         }
 
-        let scot_pending_token = 0;
-        let scot_total_author_payout = 0;
-        let scot_total_curator_payout = 0;
-        let payout = 0;
-        let promoted = 0;
-        // Arbitrary invalid cash time (steem related behavior)
-        let cashout_time = '1969-12-31T23:59:59';
+        const processedScotData = {
+            pending_token: 0,
+            total_author_payout: 0,
+            total_curator_payout: 0,
+            payout: 0,
+            promoted: 0,
+            // Arbitrary invalid cash time (steem related behavior)
+            cashout_time: '1969-12-31T23:59:59',
+        };
+        const processedSteemData = {
+            pending_token: 0,
+            total_author_payout: 0,
+            total_curator_payout: 0,
+            payout: 0,
+            promoted: 0,
+            // Arbitrary invalid cash time (steem related behavior)
+            cashout_time: '1969-12-31T23:59:59',
+        };
         if (scotData) {
-            scot_pending_token = parseInt(scotData.get('pending_token'));
-            scot_total_curator_payout = parseInt(
-                scotData.get('curator_payout_value')
+            this._processScotData(
+                scotData.get(LIQUID_TOKEN_UPPERCASE),
+                processedScotData
             );
-            scot_total_author_payout = parseInt(
-                scotData.get('total_payout_value')
-            );
-            const scot_bene_payout = parseInt(
-                scotData.get('beneficiaries_payout_value')
-            );
-            promoted = parseInt(scotData.get('promoted'));
-            scot_total_author_payout -= scot_total_curator_payout;
-            scot_total_author_payout -= scot_bene_payout;
-            cashout_time = scotData.get('cashout_time');
-            payout = scot_pending_token
-                ? scot_pending_token
-                : scot_total_author_payout + scot_total_curator_payout;
-
-            // divide by SCOT_DENOM
-            scot_pending_token /= SCOT_DENOM;
-            scot_total_curator_payout /= SCOT_DENOM;
-            scot_total_author_payout /= SCOT_DENOM;
-            payout /= SCOT_DENOM;
-            promoted /= SCOT_DENOM;
+            console.log(scotData.toJS());
+            if (scotData.has('STEEM')) {
+                const steemData = scotData.get('STEEM');
+                processedSteemData.cashout_time = steemData.get('cashout_time');
+                processedSteemData.max_accepted_payout = parsePayoutAmount(
+                    steemData.get('max_accepted_payout')
+                );
+                processedSteemData.pending_payout = parsePayoutAmount(
+                    steemData.get('pending_payout_value')
+                );
+                const percent_steem_dollars =
+                    steemData.get('percent_steem_dollars') / 20000;
+                processedSteemData.pending_payout_sbd =
+                    processedSteemData.pending_payout * percent_steem_dollars;
+                processedSteemData.pending_payout_sp =
+                    (processedSteemData.pending_payout -
+                        processedSteemData.pending_payout_sbd) /
+                    price_per_steem;
+                processedSteemData.pending_payout_printed_sbd =
+                    processedSteemData.pending_payout_sbd *
+                    (sbd_print_rate / SBD_PRINT_RATE_MAX);
+                processedSteemData.pending_payout_printed_steem =
+                    (processedSteemData.pending_payout_sbd -
+                        processedSteemData.pending_payout_printed_sbd) /
+                    price_per_steem;
+                processedSteemData.total_author_payout = parsePayoutAmount(
+                    steemData.get('total_payout_value')
+                );
+                processedSteemData.total_curator_payout = parsePayoutAmount(
+                    steemData.get('curator_payout_value')
+                );
+                processedSteemData.payout =
+                    processedSteemData.pending_payout +
+                    processedSteemData.total_author_payout +
+                    processedSteemData.total_curator_payout;
+                if (processedSteemData.payout < 0.0)
+                    processedSteemData.payout = 0.0;
+                if (
+                    processedSteemData.payout >
+                    processedSteemData.max_accepted_payout
+                )
+                    processedSteemDatapayout =
+                        processedSteemData.max_accepted_payout;
+            }
         }
         const total_votes = post_obj.getIn(['stats', 'total_votes']);
 
-        if (payout < 0.0) payout = 0.0;
+        if (processedScotData.payout < 0.0) processedScotData.payout = 0.0;
 
         const up = (
             <Icon
@@ -411,51 +489,112 @@ class Voting extends React.Component {
             (votingUpActive ? ' votingUp' : '');
 
         // There is an "active cashout" if: (a) there is a pending payout, OR (b) there is a valid cashout_time AND it's NOT a comment with 0 votes.
-        if (
-            cashout_time &&
-            /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$/.test(cashout_time)
-        ) {
-            cashout_time = cashout_time + 'Z'; // Firefox really wants this Z (Zulu)
-        }
-        const cashout_active =
-            scot_pending_token > 0 ||
-            (new Date(cashout_time) > Date.now() &&
+        const scot_cashout_active =
+            processedScotData.pending_token > 0 ||
+            (new Date(processedScotData.cashout_time) > Date.now() &&
+                !(is_comment && total_votes == 0));
+        const steem_cashout_active =
+            processedSteemData.pending_payout > 0 ||
+            (processedSteemData.cashout_time.indexOf('1969') !== 0 &&
                 !(is_comment && total_votes == 0));
         const payoutItems = [];
         const numDecimals = Math.log10(SCOT_DENOM);
 
-        if (promoted > 0) {
+        if (processedScotData.promoted > 0) {
             payoutItems.push({
-                value: `Promotion Cost ${promoted.toFixed(numDecimals)} ${
-                    LIQUID_TOKEN_UPPERCASE
-                }`,
+                value: `Promotion Cost ${processedScotData.promoted.toFixed(
+                    numDecimals
+                )} ${LIQUID_TOKEN_UPPERCASE}`,
             });
         }
-        if (cashout_active) {
+        if (scot_cashout_active) {
             payoutItems.push({ value: 'Pending Payout' });
             payoutItems.push({
-                value: `${scot_pending_token.toFixed(numDecimals)} ${
-                    LIQUID_TOKEN_UPPERCASE
-                }`,
-            });
-            payoutItems.push({
-                value: <TimeAgoWrapper date={cashout_time} />,
-            });
-        } else if (scot_total_author_payout) {
-            payoutItems.push({
-                value: `Past Token Payouts ${payout.toFixed(numDecimals)} ${
-                    LIQUID_TOKEN_UPPERCASE
-                }`,
-            });
-            payoutItems.push({
-                value: `- Author ${scot_total_author_payout.toFixed(
+                value: `${processedScotData.pending_token.toFixed(
                     numDecimals
                 )} ${LIQUID_TOKEN_UPPERCASE}`,
             });
             payoutItems.push({
-                value: `- Curator ${scot_total_curator_payout.toFixed(
+                value: <TimeAgoWrapper date={processedScotData.cashout_time} />,
+            });
+        } else if (processedScotData.total_author_payout) {
+            payoutItems.push({
+                value: `Past Token Payouts ${processedScotData.payout.toFixed(
                     numDecimals
                 )} ${LIQUID_TOKEN_UPPERCASE}`,
+            });
+            payoutItems.push({
+                value: `- Author ${processedScotData.total_author_payout.toFixed(
+                    numDecimals
+                )} ${LIQUID_TOKEN_UPPERCASE}`,
+            });
+            payoutItems.push({
+                value: `- Curator ${processedScotData.total_curator_payout.toFixed(
+                    numDecimals
+                )} ${LIQUID_TOKEN_UPPERCASE}`,
+            });
+        }
+        if (steem_cashout_active) {
+            payoutItems.push({
+                value: tt('voting_jsx.pending_payout', {
+                    value: formatDecimal(
+                        processedSteemData.pending_payout
+                    ).join(''),
+                }),
+            });
+            if (processedSteemData.max_accepted_payout > 0) {
+                payoutItems.push({
+                    value:
+                        '(' +
+                        formatDecimal(
+                            processedSteemData.pending_payout_printed_sbd
+                        ).join('') +
+                        ' ' +
+                        DEBT_TOKEN_SHORT +
+                        ', ' +
+                        (sbd_print_rate != SBD_PRINT_RATE_MAX
+                            ? formatDecimal(
+                                  processedSteemData.pending_payout_printed_steem
+                              ).join('') +
+                              ' ' +
+                              LIQUID_TOKEN_UPPERCASE +
+                              ', '
+                            : '') +
+                        formatDecimal(
+                            processedSteemData.pending_payout_sp
+                        ).join('') +
+                        ' ' +
+                        INVEST_TOKEN_SHORT +
+                        ')',
+                });
+            }
+            payoutItems.push({
+                value: (
+                    <TimeAgoWrapper date={processedSteemData.cashout_time} />
+                ),
+            });
+        } else if (processedSteemData.total_author_payout > 0) {
+            payoutItems.push({
+                value: tt('voting_jsx.past_payouts', {
+                    value: formatDecimal(
+                        processedSteemData.total_author_payout +
+                            processedSteemData.total_curator_payout
+                    ).join(''),
+                }),
+            });
+            payoutItems.push({
+                value: tt('voting_jsx.past_payouts_author', {
+                    value: formatDecimal(
+                        processedSteemData.total_author_payout
+                    ).join(''),
+                }),
+            });
+            payoutItems.push({
+                value: tt('voting_jsx.past_payouts_curators', {
+                    value: formatDecimal(
+                        processedSteemData.total_curator_payout
+                    ).join(''),
+                }),
             });
         }
 
@@ -463,7 +602,7 @@ class Voting extends React.Component {
             <DropdownMenu el="div" items={payoutItems}>
                 <span>
                     <FormattedAsset
-                        amount={payout}
+                        amount={processedScotData.payout}
                         asset={LIQUID_TOKEN_UPPERCASE}
                     />
                     {payoutItems.length > 0 && <Icon name="dropdown-arrow" />}
@@ -600,7 +739,7 @@ export default connect(
     (state, ownProps) => {
         const post = state.global.getIn(['content', ownProps.post]);
         if (!post) return ownProps;
-        const scotData = post.getIn(['scotData', LIQUID_TOKEN_UPPERCASE]);
+        const scotData = post.get('scotData');
         const author = post.get('author');
         const permlink = post.get('permlink');
         const active_votes = post.get('active_votes');
@@ -621,6 +760,9 @@ export default connect(
             : null;
         const enable_slider = true;
 
+        const price_per_steem = pricePerSteem(state);
+        const sbd_print_rate = state.global.getIn(['props', 'sbd_print_rate']);
+
         return {
             post: ownProps.post,
             showList: ownProps.showList,
@@ -635,6 +777,8 @@ export default connect(
             voting,
             votingData,
             scotData,
+            price_per_steem,
+            sbd_print_rate,
         };
     },
 
