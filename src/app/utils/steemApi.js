@@ -49,10 +49,12 @@ async function getAuthorRep(feedData) {
     return authorRep;
 }
 
-function mergeContent(content, scotData) {
-    const voted = content.active_votes;
-    const lastUpdate = content.last_update;
-    const title = content.title;
+function mergeContent(content, scotData, skipSteemMerge) {
+    // Preserve STEEM data as well.
+    const oldContent = { ...content };
+    const voted = oldContent.active_votes;
+    const lastUpdate = oldContent.last_update;
+    const title = oldContent.title;
     Object.assign(content, scotData);
     if (voted) {
         const scotVoted = new Set(content.active_votes.map(v => v.voter));
@@ -75,6 +77,9 @@ function mergeContent(content, scotData) {
     }
     content.scotData = {};
     content.scotData[LIQUID_TOKEN_UPPERCASE] = scotData;
+    if (!skipSteemMerge) {
+        content.scotData['STEEM'] = oldContent;
+    }
 }
 
 async function fetchMissingData(tag, feedType, state, feedData) {
@@ -114,10 +119,11 @@ async function fetchMissingData(tag, feedType, state, feedData) {
                 children: d.children,
                 replies: [], // intentional
             };
+            mergeContent(filteredContent[key], d, true);
         } else {
             filteredContent[key] = state.content[key];
+            mergeContent(filteredContent[key], d);
         }
-        mergeContent(filteredContent[key], d);
         discussionIndex.push(key);
     });
     state.content = filteredContent;
@@ -307,6 +313,7 @@ export async function fetchFeedDataAsync(call_name, ...args) {
                         authorPermlink[0],
                         authorPermlink[1]
                     );
+                    mergeContent(content, scotData);
                 } else {
                     content = {
                         body: scotData.desc,
@@ -316,8 +323,8 @@ export async function fetchFeedDataAsync(call_name, ...args) {
                         children: scotData.children,
                         replies: [], // intentional
                     };
+                    mergeContent(content, scotData, true);
                 }
-                mergeContent(content, scotData);
                 return content;
             })
         );

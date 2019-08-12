@@ -44,6 +44,7 @@ const ABOUT_FLAG = (
 const MAX_VOTES_DISPLAY = 20;
 const VOTE_WEIGHT_DROPDOWN_THRESHOLD_RSHARES = 1.0 * 1000.0 * 1000.0;
 const MAX_WEIGHT = 10000;
+const SBD_PRINT_RATE_MAX = 10000;
 
 class Voting extends React.Component {
     static propTypes = {
@@ -63,6 +64,7 @@ class Voting extends React.Component {
         enable_slider: PropTypes.bool,
         voting: PropTypes.bool,
         scotData: PropTypes.object,
+        steemData: PropTypes.object,
     };
 
     static defaultProps = {
@@ -232,6 +234,9 @@ class Voting extends React.Component {
             scotPrecision,
             voteRegenSec,
             rewardData,
+            steemData,
+            price_per_steem,
+            sbd_print_rate,
         } = this.props;
         const {
             votingUp,
@@ -277,6 +282,17 @@ class Voting extends React.Component {
             rewardData.reward_pool /
             rewardData.pending_rshares;
 
+        const processedSteemData = {
+            is_present: false,
+            pending_token: 0,
+            total_author_payout: 0,
+            total_curator_payout: 0,
+            payout: 0,
+            promoted: 0,
+            // Arbitrary invalid cash time (steem related behavior)
+            cashout_time: '1969-12-31T23:59:59',
+        };
+
         const rsharesTotal = active_votes
             ? active_votes
                   .toJS()
@@ -309,6 +325,51 @@ class Voting extends React.Component {
             scot_total_author_payout /= scotDenom;
             payout /= scotDenom;
             promoted /= scotDenom;
+
+            // if we saved steem data in 'STEEM':
+            if (steemData) {
+                processedSteemData.is_present = true;
+                processedSteemData.cashout_time = steemData.get('cashout_time');
+                processedSteemData.max_accepted_payout = parsePayoutAmount(
+                    steemData.get('max_accepted_payout')
+                );
+                processedSteemData.pending_payout = parsePayoutAmount(
+                    steemData.get('pending_payout_value')
+                );
+                const percent_steem_dollars =
+                    steemData.get('percent_steem_dollars') / 20000;
+                processedSteemData.pending_payout_sbd =
+                    processedSteemData.pending_payout * percent_steem_dollars;
+                processedSteemData.pending_payout_sp =
+                    (processedSteemData.pending_payout -
+                        processedSteemData.pending_payout_sbd) /
+                    price_per_steem;
+                processedSteemData.pending_payout_printed_sbd =
+                    processedSteemData.pending_payout_sbd *
+                    (sbd_print_rate / SBD_PRINT_RATE_MAX);
+                processedSteemData.pending_payout_printed_steem =
+                    (processedSteemData.pending_payout_sbd -
+                        processedSteemData.pending_payout_printed_sbd) /
+                    price_per_steem;
+                processedSteemData.total_author_payout = parsePayoutAmount(
+                    steemData.get('total_payout_value')
+                );
+                processedSteemData.total_curator_payout = parsePayoutAmount(
+                    steemData.get('curator_payout_value')
+                );
+                processedSteemData.payout =
+                    processedSteemData.pending_payout +
+                    processedSteemData.total_author_payout +
+                    processedSteemData.total_curator_payout;
+                if (processedSteemData.payout < 0.0)
+                    processedSteemData.payout = 0.0;
+                if (
+                    processedSteemData.payout >
+                    processedSteemData.max_accepted_payout
+                )
+                    processedSteemData.payout =
+                        processedSteemData.max_accepted_payout;
+            }
         }
         const total_votes = post_obj.getIn(['stats', 'total_votes']);
         if (payout < 0.0) payout = 0.0;
@@ -501,6 +562,78 @@ class Voting extends React.Component {
                     scotPrecision
                 )} ${LIQUID_TOKEN_UPPERCASE}`,
             });
+        }
+
+        if (processedSteemData.is_present) {
+            const steem_cashout_active =
+                processedSteemData.pending_payout > 0 ||
+                (processedSteemData.cashout_time.indexOf('1969') !== 0 &&
+                    !(is_comment && total_votes == 0));
+            if (steem_cashout_active) {
+                payoutItems.push({
+                    value:
+                        'STEEM ' +
+                        tt('voting_jsx.pending_payout', {
+                            value: formatDecimal(
+                                processedSteemData.pending_payout
+                            ).join(''),
+                        }),
+                });
+                if (processedSteemData.max_accepted_payout > 0) {
+                    payoutItems.push({
+                        value:
+                            '(' +
+                            formatDecimal(
+                                processedSteemData.pending_payout_printed_sbd
+                            ).join('') +
+                            ' ' +
+                            DEBT_TOKEN_SHORT +
+                            ', ' +
+                            (sbd_print_rate != SBD_PRINT_RATE_MAX
+                                ? formatDecimal(
+                                      processedSteemData.pending_payout_printed_steem
+                                  ).join('') + ' STEEM, '
+                                : '') +
+                            formatDecimal(
+                                processedSteemData.pending_payout_sp
+                            ).join('') +
+                            ' ' +
+                            INVEST_TOKEN_SHORT +
+                            ')',
+                    });
+                }
+                payoutItems.push({
+                    key: 'steem_value',
+                    value: (
+                        <TimeAgoWrapper
+                            date={processedSteemData.cashout_time}
+                        />
+                    ),
+                });
+            } else if (processedSteemData.total_author_payout > 0) {
+                payoutItems.push({
+                    value: tt('voting_jsx.past_payouts', {
+                        value: formatDecimal(
+                            processedSteemData.total_author_payout +
+                                processedSteemData.total_curator_payout
+                        ).join(''),
+                    }),
+                });
+                payoutItems.push({
+                    value: tt('voting_jsx.past_payouts_author', {
+                        value: formatDecimal(
+                            processedSteemData.total_author_payout
+                        ).join(''),
+                    }),
+                });
+                payoutItems.push({
+                    value: tt('voting_jsx.past_payouts_curators', {
+                        value: formatDecimal(
+                            processedSteemData.total_curator_payout
+                        ).join(''),
+                    }),
+                });
+            }
         }
 
         // add beneficiary info. use toFixed due to a bug of formatDecimal (5.00 is shown as 5,.00)
@@ -714,6 +847,7 @@ export default connect(
         if (!post) return ownProps;
         const scotConfig = state.app.get('scotConfig');
         const scotData = post.getIn(['scotData', LIQUID_TOKEN_UPPERCASE]);
+        const steemData = post.getIn(['scotData', 'STEEM']);
         const rewardData = {
             pending_rshares: scotConfig.getIn(['info', 'pending_rshares']),
             reward_pool: scotConfig.getIn(['info', 'reward_pool']),
@@ -756,6 +890,9 @@ export default connect(
             : null;
         const enable_slider = true;
 
+        const price_per_steem = pricePerSteem(state);
+        const sbd_print_rate = state.global.getIn(['props', 'sbd_print_rate']);
+
         return {
             post: ownProps.post,
             showList: ownProps.showList,
@@ -779,6 +916,9 @@ export default connect(
                 5 * 24 * 60 * 60
             ),
             rewardData,
+            steemData,
+            price_per_steem,
+            sbd_print_rate,
         };
     },
 

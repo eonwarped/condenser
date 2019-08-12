@@ -32,7 +32,10 @@ export default class VerticalMenu extends React.Component {
                 {items.map(i => {
                     if (i.value === hideValue) return null;
                     return (
-                        <li key={i.value} onClick={this.closeMenu}>
+                        <li
+                            key={i.key ? i.key : i.value}
+                            onClick={this.closeMenu}
+                        >
                             {i.link ? (
                                 i.link.match(/^http(s?)/) ? (
                                     <a href={i.link} target="_blank">
