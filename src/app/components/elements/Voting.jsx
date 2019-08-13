@@ -222,6 +222,8 @@ class Voting extends React.Component {
 
     render() {
         const {
+            author,
+            permlink,
             active_votes,
             showList,
             voting,
@@ -263,6 +265,7 @@ class Voting extends React.Component {
         let scot_total_curator_payout = 0;
         let payout = 0;
         let promoted = 0;
+        let decline_payout = false;
         // Arbitrary invalid cash time (steem related behavior)
         const cashout_time =
             scotData && scotData.has('cashout_time')
@@ -313,6 +316,7 @@ class Voting extends React.Component {
                 scotData.get('beneficiaries_payout_value')
             );
             promoted = parseInt(scotData.get('promoted'));
+            decline_payout = scotData.get('decline_payout');
             scot_total_author_payout -= scot_total_curator_payout;
             scot_total_author_payout -= scot_bene_payout;
             payout = cashout_active
@@ -325,51 +329,51 @@ class Voting extends React.Component {
             scot_total_author_payout /= scotDenom;
             payout /= scotDenom;
             promoted /= scotDenom;
+        }
 
-            // if we saved steem data in 'STEEM':
-            if (steemData) {
-                processedSteemData.is_present = true;
-                processedSteemData.cashout_time = steemData.get('cashout_time');
-                processedSteemData.max_accepted_payout = parsePayoutAmount(
-                    steemData.get('max_accepted_payout')
-                );
-                processedSteemData.pending_payout = parsePayoutAmount(
-                    steemData.get('pending_payout_value')
-                );
-                const percent_steem_dollars =
-                    steemData.get('percent_steem_dollars') / 20000;
-                processedSteemData.pending_payout_sbd =
-                    processedSteemData.pending_payout * percent_steem_dollars;
-                processedSteemData.pending_payout_sp =
-                    (processedSteemData.pending_payout -
-                        processedSteemData.pending_payout_sbd) /
-                    price_per_steem;
-                processedSteemData.pending_payout_printed_sbd =
-                    processedSteemData.pending_payout_sbd *
-                    (sbd_print_rate / SBD_PRINT_RATE_MAX);
-                processedSteemData.pending_payout_printed_steem =
-                    (processedSteemData.pending_payout_sbd -
-                        processedSteemData.pending_payout_printed_sbd) /
-                    price_per_steem;
-                processedSteemData.total_author_payout = parsePayoutAmount(
-                    steemData.get('total_payout_value')
-                );
-                processedSteemData.total_curator_payout = parsePayoutAmount(
-                    steemData.get('curator_payout_value')
-                );
+        // if we saved steem data in 'STEEM':
+        if (steemData) {
+            processedSteemData.is_present = true;
+            processedSteemData.cashout_time = steemData.get('cashout_time');
+            processedSteemData.max_accepted_payout = parsePayoutAmount(
+                steemData.get('max_accepted_payout')
+            );
+            processedSteemData.pending_payout = parsePayoutAmount(
+                steemData.get('pending_payout_value')
+            );
+            const percent_steem_dollars =
+                steemData.get('percent_steem_dollars') / 20000;
+            processedSteemData.pending_payout_sbd =
+                processedSteemData.pending_payout * percent_steem_dollars;
+            processedSteemData.pending_payout_sp =
+                (processedSteemData.pending_payout -
+                    processedSteemData.pending_payout_sbd) /
+                price_per_steem;
+            processedSteemData.pending_payout_printed_sbd =
+                processedSteemData.pending_payout_sbd *
+                (sbd_print_rate / SBD_PRINT_RATE_MAX);
+            processedSteemData.pending_payout_printed_steem =
+                (processedSteemData.pending_payout_sbd -
+                    processedSteemData.pending_payout_printed_sbd) /
+                price_per_steem;
+            processedSteemData.total_author_payout = parsePayoutAmount(
+                steemData.get('total_payout_value')
+            );
+            processedSteemData.total_curator_payout = parsePayoutAmount(
+                steemData.get('curator_payout_value')
+            );
+            processedSteemData.payout =
+                processedSteemData.pending_payout +
+                processedSteemData.total_author_payout +
+                processedSteemData.total_curator_payout;
+            if (processedSteemData.payout < 0.0)
+                processedSteemData.payout = 0.0;
+            if (
+                processedSteemData.payout >
+                processedSteemData.max_accepted_payout
+            )
                 processedSteemData.payout =
-                    processedSteemData.pending_payout +
-                    processedSteemData.total_author_payout +
-                    processedSteemData.total_curator_payout;
-                if (processedSteemData.payout < 0.0)
-                    processedSteemData.payout = 0.0;
-                if (
-                    processedSteemData.payout >
-                    processedSteemData.max_accepted_payout
-                )
-                    processedSteemData.payout =
-                        processedSteemData.max_accepted_payout;
-            }
+                    processedSteemData.max_accepted_payout;
         }
         const total_votes = post_obj.getIn(['stats', 'total_votes']);
         if (payout < 0.0) payout = 0.0;
@@ -528,6 +532,7 @@ class Voting extends React.Component {
             (votingUpActive ? ' votingUp' : '');
 
         const payoutItems = [];
+        const steemPayoutItems = [];
 
         if (promoted > 0) {
             payoutItems.push({
@@ -570,7 +575,7 @@ class Voting extends React.Component {
                 (processedSteemData.cashout_time.indexOf('1969') !== 0 &&
                     !(is_comment && total_votes == 0));
             if (steem_cashout_active) {
-                payoutItems.push({
+                steemPayoutItems.push({
                     value:
                         'STEEM ' +
                         tt('voting_jsx.pending_payout', {
@@ -580,7 +585,7 @@ class Voting extends React.Component {
                         }),
                 });
                 if (processedSteemData.max_accepted_payout > 0) {
-                    payoutItems.push({
+                    steemPayoutItems.push({
                         value:
                             '(' +
                             formatDecimal(
@@ -602,8 +607,8 @@ class Voting extends React.Component {
                             ')',
                     });
                 }
-                payoutItems.push({
-                    key: 'steem_value',
+                steemPayoutItems.push({
+                    key: `steem_time_${author}_${permlink}`,
                     value: (
                         <TimeAgoWrapper
                             date={processedSteemData.cashout_time}
@@ -611,7 +616,7 @@ class Voting extends React.Component {
                     ),
                 });
             } else if (processedSteemData.total_author_payout > 0) {
-                payoutItems.push({
+                steemPayoutItems.push({
                     value: tt('voting_jsx.past_payouts', {
                         value: formatDecimal(
                             processedSteemData.total_author_payout +
@@ -619,14 +624,14 @@ class Voting extends React.Component {
                         ).join(''),
                     }),
                 });
-                payoutItems.push({
+                steemPayoutItems.push({
                     value: tt('voting_jsx.past_payouts_author', {
                         value: formatDecimal(
                             processedSteemData.total_author_payout
                         ).join(''),
                     }),
                 });
-                payoutItems.push({
+                steemPayoutItems.push({
                     value: tt('voting_jsx.past_payouts_curators', {
                         value: formatDecimal(
                             processedSteemData.total_curator_payout
@@ -672,17 +677,59 @@ class Voting extends React.Component {
                 payoutItems.pop(); // pop tt('g.beneficiaries')
             }
         }
+        if (
+            processedSteemData.is_present &&
+            beneficiaries &&
+            !beneficiaries.isEmpty()
+        ) {
+            steemPayoutItems.push({ value: tt('g.beneficiaries') });
+
+            beneficiaries.forEach(function(key) {
+                payoutItems.push({
+                    value:
+                        '- ' +
+                        key.get('account') +
+                        ': ' +
+                        (parseFloat(key.get('weight')) / 100).toFixed(2) +
+                        '%',
+                    link: '/@' + key.get('account'),
+                });
+            });
+        }
 
         const payoutEl = (
-            <DropdownMenu el="div" items={payoutItems}>
-                <span>
-                    <FormattedAsset
-                        amount={payout}
-                        asset={LIQUID_TOKEN_UPPERCASE}
-                    />
-                    {payoutItems.length > 0 && <Icon name="dropdown-arrow" />}
-                </span>
-            </DropdownMenu>
+            <div>
+                <DropdownMenu el="div" items={payoutItems}>
+                    <span>
+                        <FormattedAsset
+                            amount={payout}
+                            asset={LIQUID_TOKEN_UPPERCASE}
+                            classname={decline_payout ? 'strikethrough' : ''}
+                        />
+                        {payoutItems.length > 0 && (
+                            <Icon name="dropdown-arrow" />
+                        )}
+                    </span>
+                </DropdownMenu>
+                {processedSteemData.is_present && (
+                    <DropdownMenu el="div" items={steemPayoutItems}>
+                        <span>
+                            <FormattedAsset
+                                amount={processedSteemData.payout}
+                                asset="$"
+                                classname={
+                                    processedSteemData.max_accepted_payout === 0
+                                        ? 'strikethrough'
+                                        : ''
+                                }
+                            />
+                            {steemPayoutItems.length > 0 && (
+                                <Icon name="dropdown-arrow" />
+                            )}
+                        </span>
+                    </DropdownMenu>
+                )}
+            </div>
         );
 
         let voters_list = null;
