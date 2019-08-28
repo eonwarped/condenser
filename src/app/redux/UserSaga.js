@@ -511,21 +511,6 @@ function* usernamePasswordLogin2({
             console.log('Logging in as', username);
             const response = yield serverApiLogin(username, signatures);
             const body = yield response.json();
-
-            if (justLoggedIn) {
-                // If ads are enabled, reload the page instead of changing the browser
-                // history when they log in, so headers will get re-requested.
-                const adsEnabled = yield select(state =>
-                    state.app.getIn(['googleAds', 'enabled'])
-                );
-                if (adsEnabled) {
-                    var url = new URL(window.location.href);
-                    url.searchParams.set('auth', 'true');
-                    console.log('New post-login URL', url.toString());
-                    window.location.replace(url.toString());
-                    return;
-                }
-            }
         }
     } catch (error) {
         // Does not need to be fatal
