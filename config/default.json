@@ -7,7 +7,7 @@
   "helmet": {
     "directives": {
       "childSrc": "'self' player.twitch.tv www.youtube.com staticxx.facebook.com w.soundcloud.com player.vimeo.com",
-      "connectSrc": "'self' steemit.com https://anyx.io api.blocktrades.us https://steemitimages.com",
+      "connectSrc": "'self' steemit.com https://api.steemit.com api.blocktrades.us https://steemitimages.com",
       "defaultSrc": "'self' www.youtube.com staticxx.facebook.com player.vimeo.com",
       "fontSrc": "data: fonts.gstatic.com",
       "frameAncestors": "'none'",
@@ -70,8 +70,8 @@
     "auth_token": false
   },
   "upload_image": false,
-  "steemd_connection_client": "https://anyx.io",
-  "steemd_connection_server": "https://anyx.io",
+  "steemd_connection_client": "https://api.steemit.com",
+  "steemd_connection_server": "https://api.steemit.com",
   "steemd_use_appbase": false,
   "chain_id": "0000000000000000000000000000000000000000000000000000000000000000",
   "address_prefix": "STM",
